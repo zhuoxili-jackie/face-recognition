@@ -1,4 +1,4 @@
-# face-recogonition — 人脸密度估计与异常聚集检测
+# face-recognition — 人脸密度估计与异常聚集检测
 
 基于 **YOLOv5** 的人脸检测 + **DBSCAN** 密度聚类，用于在图像中**检测所有人脸、统计人脸密度，并圈出人脸异常聚集的区域**。
 
@@ -145,7 +145,7 @@ python scripts/predict.py
 ## 4. 目录结构
 
 ```
-face-recogonition/
+face-recognition/
 ├── archive/                  # 原始数据集（WIDER FACE，YOLO 格式）
 │   ├── images/               #   12880 张图片
 │   └── labels/               #   对应标签 txt（人脸 cx cy w h）
@@ -173,6 +173,23 @@ face-recogonition/
 | 标注框含义 | 人体长宽 | 人脸长宽 |
 | 密度聚类 | DBSCAN（人体中心点） | DBSCAN（人脸中心点） |
 | 输出 | 异常聚集圈 | 异常聚集圈 + 总人脸数 + 汇总 csv |
+
+---
+
+## 6. 下一阶段：用 Viola-Jones（VJ）框架改造检测器
+
+本项目正在引入实验室的 **Viola-Jones 框架**（积分图 + 类 Haar 特征 + AdaBoost + 级联）
+作为可替换的检测器。检测器已抽象成可插拔模块，`--detector yolo` / `--detector vj` 一键切换。
+
+进度与路线（详见 [`docs/VJ_改造方案.md`](docs/VJ_改造方案.md)、演示图见 [`docs/demo/`](docs/demo/)）：
+
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| M0 | 抽象 `FaceDetector` 接口，下游改走接口（yolo 行为不变） | ✅ 已完成 |
+| M1 | 接入 OpenCV Haar 级联（原始 VJ），`--detector vj` 出框 | ✅ 已完成 |
+| M2 | 从零自研 VJ：积分图 / 类 Haar 特征 / AdaBoost / 级联 | ⏳ 下一步 |
+| M3 | 两项改进：分散矩形特征、双阈值弱分类器 | ⏳ 待做 |
+| M4 | ROC/FROC 对比：原始 VJ vs 改进 VJ vs YOLO | ⏳ 待做 |
 
 ---
 
