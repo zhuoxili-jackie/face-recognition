@@ -70,7 +70,14 @@ def main():
 
         result = model.predict(img, conf=args.conf, imgsz=args.imgsz, verbose=False)[0]
         # 人脸框中心点（像素坐标，已是原图尺度）
-        centers = result.boxes.xywh.cpu().numpy()[:, :2] if len(result.boxes) else np.empty((0, 2))
+        if len(result.boxes):
+            boxes = result.boxes.xyxy.cpu().numpy()                 # 每张脸的方框 (x1,y1,x2,y2)
+            confs = result.boxes.conf.cpu().numpy()                 # 对应置信度
+            centers = result.boxes.xywh.cpu().numpy()[:, :2]        # 框中心点，用于聚类
+        else:
+            boxes = np.empty((0, 4))
+            confs = np.empty((0,))
+            centers = np.empty((0, 2))
 
         n_faces = len(centers)
         abnormal_points = set()
@@ -93,9 +100,17 @@ def main():
                 radius *= 1.05
                 cv2.circle(img, (int(cx), int(cy)), int(radius), (0, 255, 255), 3)
 
-            for pt in centers:
-                color = (0, 0, 255) if tuple(pt) in abnormal_points else (0, 255, 0)
-                cv2.circle(img, (int(pt[0]), int(pt[1])), 4, color, -1)
+            # 用方框框住每张脸，并在框上方标注置信度
+            for (x1, y1, x2, y2), conf, ctr in zip(boxes, confs, centers):
+                color = (0, 0, 255) if tuple(ctr) in abnormal_points else (0, 255, 0)
+                p1, p2 = (int(x1), int(y1)), (int(x2), int(y2))
+                cv2.rectangle(img, p1, p2, color, 2)
+                label = f"{conf:.2f}"
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+                ty = max(int(y1), th + 3)
+                cv2.rectangle(img, (p1[0], ty - th - 3), (p1[0] + tw + 2, ty), color, -1)
+                cv2.putText(img, label, (p1[0] + 1, ty - 2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1, cv2.LINE_AA)
 
         text = f"faces: {n_faces}  clusters: {n_clusters}"
         cv2.rectangle(img, (0, 0), (10 + 11 * len(text), 34), (0, 0, 0), -1)
