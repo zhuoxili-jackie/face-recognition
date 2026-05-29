@@ -89,30 +89,37 @@ def match(pred, conf, gt, iou_thr):
 
 
 def dense_clusters(pred, R, min_pts, min_cluster):
-    """对人脸框中心做 DBSCAN，返回密集区外接圆列表 [(cx,cy,radius), ...]。"""
+    """对人脸框中心做 DBSCAN。
+
+    返回 (circles, dense_idx)：
+      circles   = 密集区外接圆列表 [(cx,cy,radius), ...]
+      dense_idx = 落在密集区内的人脸框下标集合（这些框画红色，其余画绿色）
+    """
     if len(pred) == 0:
-        return []
+        return [], set()
     centers = np.stack([(pred[:, 0] + pred[:, 2]) / 2, (pred[:, 1] + pred[:, 3]) / 2], axis=1)
     labels = DBSCAN(eps=R, min_samples=min_pts).fit_predict(centers)
-    circles = []
+    circles, dense_idx = [], set()
     for lab in set(labels):
         if lab == -1:
             continue
-        pts = centers[labels == lab].astype(np.float32)
-        if len(pts) >= min_cluster:
+        idxs = np.where(labels == lab)[0]
+        if len(idxs) >= min_cluster:
+            pts = centers[idxs].astype(np.float32)
             (cx, cy), radius = cv2.minEnclosingCircle(pts)
             circles.append((cx, cy, radius * 1.05))
-    return circles
+            dense_idx.update(int(i) for i in idxs)
+    return circles, dense_idx
 
 
-def draw_annotated(img, pred, conf, matched, gt_n, prec, circles):
-    """画检测框（命中=绿，误检=红）+ 置信度 + 人群密集区黄圈，顶部标注 GT/Det/Prec/Clusters。"""
+def draw_annotated(img, pred, conf, dense_idx, gt_n, prec, circles):
+    """画人群密集区黄圈 + 人脸框（圈内=红, 圈外=绿）+ 置信度，顶部标注 GT/Det/Prec/Clusters。"""
     # 先画黄圈（密集区），让框叠在上面
     for cx, cy, radius in circles:
         cv2.circle(img, (int(cx), int(cy)), int(radius), (0, 255, 255), 3)
 
     for i, (x1, y1, x2, y2) in enumerate(pred):
-        color = (0, 255, 0) if i in matched else (0, 0, 255)  # 绿=命中, 红=误检
+        color = (0, 0, 255) if i in dense_idx else (0, 255, 0)  # 红=密集区内, 绿=密集区外
         p1, p2 = (int(x1), int(y1)), (int(x2), int(y2))
         cv2.rectangle(img, p1, p2, color, 2)
         label = f"{conf[i]:.2f}"
@@ -167,7 +174,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     print(f"权重: {args.weights}  conf={args.conf}  IoU匹配阈值={args.iou}\n")
-    header = f"{'image':28s} {'GT':>4s} {'Det':>4s} {'TP':>4s} {'Recall':>8s} {'Prec':>8s}"
+    header = f"{'image':28s} {'GT':>4s} {'Det':>4s} {'TP':>4s} {'Recall':>8s} {'Prec':>8s} {'Clu':>4s}"
     print(header)
     print("-" * len(header))
 
@@ -195,13 +202,14 @@ def main():
         tp = len(matched)
         recall = tp / len(gt) if len(gt) else 0.0
         prec = tp / len(pred) if len(pred) else 0.0
-        rows.append((stem, len(gt), len(pred), tp, recall, prec))
+        circles, dense_idx = dense_clusters(pred, args.R, args.min_pts, args.min_cluster)
+        n_clusters = len(circles)
+        rows.append((stem, len(gt), len(pred), tp, recall, prec, n_clusters))
         tot_gt += len(gt); tot_det += len(pred); tot_tp += tp
-        print(f"{stem:28s} {len(gt):4d} {len(pred):4d} {tp:4d} {recall:8.1%} {prec:8.1%}")
+        print(f"{stem:28s} {len(gt):4d} {len(pred):4d} {tp:4d} {recall:8.1%} {prec:8.1%} {n_clusters:4d}")
 
-        # 保存标注图：框 + 置信度 + 人群密集区黄圈 + 顶部 GT/Det/Prec/Clusters
-        circles = dense_clusters(pred, args.R, args.min_pts, args.min_cluster)
-        draw_annotated(img, pred, conf, matched, len(gt), prec, circles)
+        # 保存标注图：黄圈(密集区) + 框(圈内红/圈外绿) + 置信度 + 顶部 GT/Det/Prec/Clusters
+        draw_annotated(img, pred, conf, dense_idx, len(gt), prec, circles)
         ext = os.path.splitext(img_path)[1]
         cv2.imencode(ext, img)[1].tofile(os.path.join(out_dir, stem + ext))
 
@@ -212,10 +220,10 @@ def main():
 
     csv_path = os.path.join(out_dir, "recognition_rate.csv")
     with open(csv_path, "w", encoding="utf-8") as f:
-        f.write("image,gt_faces,detected,tp,recall,precision\n")
-        for stem, g, d, tp, rec, pr in rows:
-            f.write(f"{stem},{g},{d},{tp},{rec:.4f},{pr:.4f}\n")
-        f.write(f"overall,{tot_gt},{tot_det},{tot_tp},{o_rec:.4f},{o_prec:.4f}\n")
+        f.write("image,gt_faces,detected,tp,recall,precision,clusters\n")
+        for stem, g, d, tp, rec, pr, nclu in rows:
+            f.write(f"{stem},{g},{d},{tp},{rec:.4f},{pr:.4f},{nclu}\n")
+        f.write(f"overall,{tot_gt},{tot_det},{tot_tp},{o_rec:.4f},{o_prec:.4f},\n")
     print(f"\n已写入：{csv_path}")
 
 
