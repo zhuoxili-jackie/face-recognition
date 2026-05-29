@@ -29,7 +29,7 @@ DEFAULT_WEIGHT = os.path.join(ROOT, "model", "weights", "yolov10n-face.pt")
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", default="datasets/images/test", help="待检测图片目录")
-    ap.add_argument("--detector", default="yolo", help="检测器：yolo")
+    ap.add_argument("--detector", default="yolo", help="检测器：yolo / vj")
     ap.add_argument("--weights", default=DEFAULT_WEIGHT, help="预训练人脸权重（yolo 需要）")
     ap.add_argument("--out", default="image_results/face_latest", help="结果图保存目录")
     ap.add_argument("--conf", type=float, default=0.25, help="检测置信度阈值")

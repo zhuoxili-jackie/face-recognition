@@ -141,7 +141,7 @@ def main():
     ap.add_argument("--source", default="datasets/images/test", help="待评估图片目录")
     ap.add_argument("--images", nargs="*", default=None,
                     help="只评估这些图（文件名，可省略扩展名），从 archive/images 取图")
-    ap.add_argument("--detector", default="yolo", help="检测器：yolo")
+    ap.add_argument("--detector", default="yolo", help="检测器：yolo / vj")
     ap.add_argument("--weights", default=DEFAULT_WEIGHT)
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--imgsz", type=int, default=640)
