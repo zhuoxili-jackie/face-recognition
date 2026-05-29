@@ -1,0 +1,31 @@
+# 大体积数据 / 参考项目（不入库）
+ref/
+archive/
+
+# 由脚本生成的数据集划分与训练/推理产物
+datasets/
+runs/
+image_results/
+
+# 模型权重
+*.pt
+*.pth
+model/weights/
+
+# 内置 YOLOv5 源码（如有，自行 clone）
+/yolov5/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# 操作系统 / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,17 @@
+# 人脸检测数据集配置（YOLOv5 格式）
+#
+# 说明：
+#   - `path` 为数据集根目录。默认写成绝对路径，由 scripts/prepare_dataset.py 自动生成；
+#     若你手动放置数据集，请把 path 改成 datasets 目录的绝对路径。
+#   - train / val / test 为相对 path 的子目录。
+#   - 只有一个类别 face（人脸），标签为标准 YOLO 格式：class cx cy w h（归一化 0~1）。
+#
+# 运行 `python scripts/prepare_dataset.py` 后，本文件中的 path 会被改写为真实绝对路径。
+
+path: C:/Users/26846/Desktop/face-recogonition/datasets
+train: images/train
+val: images/val
+test: images/test
+
+nc: 1
+names: ['face']
