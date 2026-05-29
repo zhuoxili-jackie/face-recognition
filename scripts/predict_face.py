@@ -19,9 +19,9 @@ import argparse
 import numpy as np
 import cv2
 from sklearn.cluster import DBSCAN
-from ultralytics import YOLO
 
 from common import ROOT
+from detectors import build_detector
 
 DEFAULT_WEIGHT = os.path.join(ROOT, "model", "weights", "yolov10n-face.pt")
 
@@ -29,7 +29,8 @@ DEFAULT_WEIGHT = os.path.join(ROOT, "model", "weights", "yolov10n-face.pt")
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", default="datasets/images/test", help="待检测图片目录")
-    ap.add_argument("--weights", default=DEFAULT_WEIGHT, help="预训练人脸权重")
+    ap.add_argument("--detector", default="yolo", help="检测器：yolo")
+    ap.add_argument("--weights", default=DEFAULT_WEIGHT, help="预训练人脸权重（yolo 需要）")
     ap.add_argument("--out", default="image_results/face_latest", help="结果图保存目录")
     ap.add_argument("--conf", type=float, default=0.25, help="检测置信度阈值")
     ap.add_argument("--imgsz", type=int, default=640, help="推理输入尺寸")
@@ -41,19 +42,20 @@ def main():
     source_abs = args.source if os.path.isabs(args.source) else os.path.abspath(os.path.join(ROOT, args.source))
     if not os.path.isdir(source_abs):
         raise FileNotFoundError(f"找不到图片目录：{source_abs}")
-    if not os.path.isfile(args.weights):
+    if args.detector == "yolo" and not os.path.isfile(args.weights):
         raise FileNotFoundError(f"找不到权重：{args.weights}")
 
     out_dir = args.out if os.path.isabs(args.out) else os.path.abspath(os.path.join(ROOT, args.out))
     os.makedirs(out_dir, exist_ok=True)
 
     print("\033[35m------ 人脸密度估计（免训练）------\033[0m")
+    print(f"  detector: {args.detector}")
     print(f"  weights: {args.weights}")
     print(f"  source:  {source_abs}")
     print(f"  output:  {out_dir}")
     print(f"  conf={args.conf}, R={args.R}, MinPts={args.min_pts}, 异常聚集阈值={args.min_cluster}")
 
-    model = YOLO(args.weights)
+    detector = build_detector(args.detector, weights=args.weights, conf=args.conf, imgsz=args.imgsz)
 
     images = [
         os.path.join(source_abs, f)
@@ -68,15 +70,11 @@ def main():
             print(f"  [skip] 无法读取 {img_path}")
             continue
 
-        result = model.predict(img, conf=args.conf, imgsz=args.imgsz, verbose=False)[0]
-        # 人脸框中心点（像素坐标，已是原图尺度）
-        if len(result.boxes):
-            boxes = result.boxes.xyxy.cpu().numpy()                 # 每张脸的方框 (x1,y1,x2,y2)
-            confs = result.boxes.conf.cpu().numpy()                 # 对应置信度
-            centers = result.boxes.xywh.cpu().numpy()[:, :2]        # 框中心点，用于聚类
+        boxes, confs = detector.detect(img)                          # (N,4) xyxy, (N,) 分数
+        # 框中心点（像素坐标，已是原图尺度），用于聚类
+        if len(boxes):
+            centers = (boxes[:, :2] + boxes[:, 2:]) / 2
         else:
-            boxes = np.empty((0, 4))
-            confs = np.empty((0,))
             centers = np.empty((0, 2))
 
         n_faces = len(centers)

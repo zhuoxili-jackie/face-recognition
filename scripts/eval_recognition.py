@@ -20,10 +20,10 @@ import argparse
 
 import numpy as np
 import cv2
-from ultralytics import YOLO
 from sklearn.cluster import DBSCAN
 
 from common import ROOT
+from detectors import build_detector
 
 DEFAULT_WEIGHT = os.path.join(ROOT, "model", "weights", "yolov10n-face.pt")
 ARCHIVE_LABELS = os.path.join(ROOT, "archive", "labels")
@@ -141,6 +141,7 @@ def main():
     ap.add_argument("--source", default="datasets/images/test", help="待评估图片目录")
     ap.add_argument("--images", nargs="*", default=None,
                     help="只评估这些图（文件名，可省略扩展名），从 archive/images 取图")
+    ap.add_argument("--detector", default="yolo", help="检测器：yolo")
     ap.add_argument("--weights", default=DEFAULT_WEIGHT)
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--imgsz", type=int, default=640)
@@ -169,11 +170,11 @@ def main():
         img_paths = [os.path.join(src, f) for f in sorted(os.listdir(src))
                      if f.lower().endswith((".jpg", ".jpeg", ".png"))]
 
-    model = YOLO(args.weights)
+    detector = build_detector(args.detector, weights=args.weights, conf=args.conf, imgsz=args.imgsz)
     out_dir = args.out if os.path.isabs(args.out) else os.path.abspath(os.path.join(ROOT, args.out))
     os.makedirs(out_dir, exist_ok=True)
 
-    print(f"权重: {args.weights}  conf={args.conf}  IoU匹配阈值={args.iou}\n")
+    print(f"检测器: {args.detector}  权重: {args.weights}  conf={args.conf}  IoU匹配阈值={args.iou}\n")
     header = f"{'image':28s} {'GT':>4s} {'Det':>4s} {'TP':>4s} {'Recall':>8s} {'Prec':>8s} {'Clu':>4s}"
     print(header)
     print("-" * len(header))
@@ -190,13 +191,7 @@ def main():
         h, w = img.shape[:2]
         gt = load_gt_boxes(label_path, w, h)
 
-        r = model.predict(img, conf=args.conf, imgsz=args.imgsz, verbose=False)[0]
-        if len(r.boxes):
-            pred = r.boxes.xyxy.cpu().numpy()
-            conf = r.boxes.conf.cpu().numpy()
-        else:
-            pred = np.empty((0, 4), np.float32)
-            conf = np.empty((0,), np.float32)
+        pred, conf = detector.detect(img)
 
         matched = match(pred, conf, gt, args.iou)
         tp = len(matched)
