@@ -60,6 +60,30 @@ pip install -r requirements.txt
 > 依赖：numpy、opencv-python、matplotlib、scikit-learn、torch、pyyaml、tqdm。
 > 训练/检测还需要 YOLOv5 自身的依赖（见下）。
 
+### 🚀 免训练快速出结果（推荐）
+
+如果你**不想训练，只想直接出人脸密度结果**，用预训练的人脸模型即可：
+
+```bash
+# 1. 下载预训练人脸权重（约 5.7MB，开箱即用，类别就是 face）
+#    放到 model/weights/yolov10n-face.pt
+#    来源：https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov10n-face.pt
+
+# 2. 直接推理（用 ultralytics 包加载，无需 YOLOv5 源码，无需训练）
+python scripts/predict_face.py --source datasets/images/test --out image_results/face_demo
+```
+
+`predict_face.py` 与下面的 `predict.py` 逻辑一致（检测 → DBSCAN 密度聚类 → 可视化 + csv），
+区别在于它**直接用 ultralytics 加载现成的人脸权重**，所以不需要训练、也不需要 YOLOv5 源码。
+其余参数同样可调：`--conf 0.3 --R 60 --min-cluster 5` 等。
+
+> 也可换用更大的模型（精度更高、速度更慢），如
+> `yolov11m-face.pt` / `yolov11l-face.pt`，见 [yolo-face releases](https://github.com/akanametov/yolo-face/releases)。
+
+---
+
+下面是**自己训练**的完整路线（数据来自 `archive`，需要 GPU 才实际可行）：
+
 ### YOLOv5 源码
 
 为避免重复存放体积庞大的源码，本项目**默认复用 `ref/train-yolo-v5/yolov5`** 里的 YOLOv5。
